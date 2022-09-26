@@ -4,12 +4,15 @@
  * @date    11/2022
  */
 #include <stdio.h>
+#include "arguments.h"
 
 int main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
+    struct args_t args = { NULL, NULL, NULL, NULL };
+    init_args_t(&args, argc, argv);
+
     // TODO:
-    puts("Hello world!");
+
+    destroy_args_t(&args);
     return 0;
 }
 

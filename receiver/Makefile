@@ -1,3 +1,8 @@
+CC=gcc
+CFLAGS=-std=c11 -Wall -Wextra -pedantic
+# CFLAGS+=-O2 # Release
+CFLAGS+=-g # Debug
+LIBS=
 TARGET=../dns_receiver
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 
@@ -11,13 +16,13 @@ run: $(TARGET)
 	$<
 
 $(TARGET): $(OBJS)
-	cd .. && make dns_receiver
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-clean: 
+clean:
 	rm -f $(TARGET) *.o
 
-valgrind:
-	cd .. && make valgrind_r
+valgrind: $(TARGET)
+	valgrind --leak-check=full --track-origins=yes $<
 
-debug:
-	cd .. && make debug_r
+debug: $(TARGET)
+	gdb -tui $<
