@@ -1,0 +1,6 @@
+.ccls-cache/
+*.o
+doc/
+dns_sender
+dns_receiver
+*.tar.gz
