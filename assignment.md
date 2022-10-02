@@ -89,8 +89,8 @@ Dokumentace vytvořeného řešení musí obsahovat a splňovat následující p
     - testování
     - měření
 - odevzdání zdrojových souborů a dokumentace v jediném Tar+GZip (tar.gz) archivu prostřednictvím STUDISu
-    - zdrojové soubory klientské aplikace v adresáři sender
-    - zdrojové soubory serverové aplikace v adresáři receiver
+    - zdrojové soubory klientské aplikace v adresáři `sender`
+    - zdrojové soubory serverové aplikace v adresáři `receiver`
     - dokumentace projektu
 
 ### Části hodnocení
