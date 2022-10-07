@@ -23,30 +23,21 @@ struct args_t {
 };
 
 /**
- * @brief Initialization of arguments holder.
+ * @brief Stores arguments into struct args_t instance.
  *
  * This function initializes structure that stores program's arguments.
- * Whenever problem occures (missing argument or allocation error)
- * function frees up all allocated memory a returns non-zero value.
+ * Whenever problem occures (missing argument) function returns non-zero value.
  * Program is successfully finished (return code 0) when -h flag is called.
  * @param args  Address of structure's instance to initialize.
  * @param argc  Size of argument vector.
  * @param argv  Argument vector.
  * @returns 0 when no problem occurs; non-zero value otherwise.
  */
-int init_args_t(struct args_t *args, int argc, char * const *argv);
+int load_args(struct args_t *args, int argc, char * const *argv);
 
 /**
  * @brief Prints program usage.
  */
 void usage();
-
-/**
- * @brief Destruction of arguments holder.
- *
- * Function frees up all allocated memory in structure.
- * @param args Address of structure's instance to initialize.
- */
-void destroy_args_t(struct args_t *args);
 
 #endif // _ARGUMENTS_H_
