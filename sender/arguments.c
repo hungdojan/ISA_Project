@@ -23,8 +23,9 @@
 #include <unistd.h>     // getopt
 
 int load_args(struct args_t *args, int argc, char * const *argv) {
-    if (args == NULL)
-        return ERR_OTHER;
+    if (args == NULL) {
+        ERR_MSG(ERR_OTHER, "\n");
+    }
 
     int opt = 1;
     // check options with arguments
@@ -35,14 +36,12 @@ int load_args(struct args_t *args, int argc, char * const *argv) {
                 break;
             case 'h':   // print help
                 usage();
-                exit(0);
+                exit(NO_ERR);
         }
     }
     // missing mandatory arguments
     if (argc - optind < 2) {
-        fprintf(stderr, "dns_sender: Missing arguments\n"
-                        "Use -h for more information\n");
-        return ERR_ARGS;
+        ERR_MSG(ERR_ARGS, "Missing arguments\n");
     }
     
     // load base_host and dst_filepath
