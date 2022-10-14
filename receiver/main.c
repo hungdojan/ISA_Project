@@ -16,45 +16,47 @@
 #include "dns_receiver_events.h"
 #include "dns_header.h"
 #include "error.h"
+#include "macros.h"
+#include "data_queue.h"
 
-#define DNS_PORT 12345
-#define PACKET_SIZE 512
 #define MAX_QUERY_SIZE (sizeof(struct dns_header) + 255 + 2 * sizeof(uint16_t))
 
-void print_packet(uint8_t *buffer, size_t buffer_size) {
-    puts("-------------- Data Dump -----------------");
-    const size_t width = 16;
-    const size_t height = ceil((double)buffer_size / 16.0);
-    size_t top = 0;
-    for (; top < height; top++) {
-        printf("0x%-7.4zx", top*width);
-        // hex code
-        for (size_t left = 0; left < width; left++) {
-            if (left)       printf(" ");
-            if (left == 8)  printf(" ");
-            if (top*width + left < buffer_size)
-                printf("%.2x", buffer[top*width + left]);
-            else
-                printf("  ");
-        }
+// void print_packet(uint8_t *buffer, size_t buffer_size) {
+//     puts("-------------- Data Dump -----------------");
+//     const size_t width = 16;
+//     const size_t height = ceil((double)buffer_size / 16.0);
+//     size_t top = 0;
+//     for (; top < height; top++) {
+//         printf("0x%-7.4zx", top*width);
+//         // hex code
+//         for (size_t left = 0; left < width; left++) {
+//             if (left)       printf(" ");
+//             if (left == 8)  printf(" ");
+//             if (top*width + left < buffer_size)
+//                 printf("%.2x", buffer[top*width + left]);
+//             else
+//                 printf("  ");
+//         }
+// 
+//         // add padding
+//         printf("%3s", "");
+// 
+//         // printable characters
+//         for (size_t left = 0; left < 16 && top*width +left < buffer_size; left++) {
+//             if (left == 8)  printf(" ");
+//             if (buffer[top*width + left] >= 32 && buffer[top*width + left] < 128)
+//                 putchar(buffer[top*width + left]);
+//             else
+//                 putchar('.');
+//         }
+//         putchar('\n');
+//     }
+//     puts("");
+// }
 
-        // add padding
-        printf("%3s", "");
-
-        // printable characters
-        for (size_t left = 0; left < 16 && top*width +left < buffer_size; left++) {
-            if (left == 8)  printf(" ");
-            if (buffer[top*width + left] >= 32 && buffer[top*width + left] < 128)
-                putchar(buffer[top*width + left]);
-            else
-                putchar('.');
-        }
-        putchar('\n');
-    }
-    puts("");
-}
-
-void print_data(uint8_t const *buffer, const char *domain_name, FILE *d) {
+// void print_data(uint8_t const *buffer, const char *domain_name, FILE *d) {
+void print_data(uint8_t const *buffer, const char *domain_name,
+        struct data_queue_t *q) {
     buffer+=sizeof(struct dns_header);
     static uint8_t a[64] = { 0, };
     uint8_t size = 0;
@@ -67,8 +69,10 @@ void print_data(uint8_t const *buffer, const char *domain_name, FILE *d) {
         if (!strncmp((char *)a, domain_name, strlen((char *)a))) {
             break;
         }
-        fwrite(a, 1, strlen((char *)a), d);
-        fflush(d);
+        // printf("%s", a);
+        append_data_from_domain(q, a, size);
+        // fwrite(a, 1, strlen((char *)a), d);
+        // fflush(d);
     }
 }
 
@@ -96,14 +100,18 @@ int main(int argc, char *argv[]) {
     socklen_t socket_size = sizeof(client);
     uint8_t buffer[PACKET_SIZE];
     FILE *d = fopen("data.txt", "wb");
+    struct data_queue_t *q = init_queue(d);
+    // TODO: check
+
     while ((n = recvfrom(socket_fd, buffer, PACKET_SIZE, 0,
                     (struct sockaddr *) &client, &socket_size)) == MAX_QUERY_SIZE) {
-        print_data(buffer, args.base_host, d);
+        print_data(buffer, args.base_host, q);
         char *msg = "received";
         memmove(buffer, msg, strlen(msg));
         sendto(socket_fd, buffer, strlen(msg), 0, (struct sockaddr *)&client, sizeof(client));
     }
-    print_data(buffer, args.base_host, d);
+    print_data(buffer, args.base_host, q);
+    flush_data_to_file(q);
     char *msg = "received";
     memmove(buffer, msg, strlen(msg));
     sendto(socket_fd, buffer, strlen(msg), 0, (struct sockaddr *)&client, sizeof(client));
@@ -112,6 +120,7 @@ int main(int argc, char *argv[]) {
     if (n == -1)
         printf("%s\n", strerror(errno));
 
+    destroy_queue(q);
     close(socket_fd);
     return 0;
 }

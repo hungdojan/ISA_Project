@@ -27,7 +27,7 @@ struct data_queue_t *init_queue(FILE *f) {
     q->f = f;
     q->index_to_read = q->file_size = q->encoded_chunk = q->encoded_len = 0;
     // clear buffer
-    update_data(q);
+    // update_data(q);
     return q;
 }
 
@@ -64,8 +64,6 @@ int get_encoded_data_from_file(struct data_queue_t *q, uint8_t *buffer, size_t n
     memmove(buffer+used_bytes, q->data+q->index_to_read, MIN(available_bytes, nof_bytes));
     q->index_to_read += MIN(available_bytes, nof_bytes);
     used_bytes += MIN(available_bytes, nof_bytes);
-    // fwrite(buffer, 1, used_bytes, stdout);
-    // printf("");
 
     return used_bytes;
 }
@@ -83,12 +81,18 @@ int flush_data_to_file(struct data_queue_t *q) {
 
 int append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size) {
     assert(q && buffer);
-    if (DATA_SIZE - q->encoded_len < buffer_size) {
+    int used_bytes = 0;
+    // fill buffer, decode and flush decoded data into the file
+    if (ENCODED_SIZE - q->encoded_len < buffer_size) {
+        used_bytes = ENCODED_SIZE - q->encoded_len;
+        memmove(q->data + q->encoded_len, buffer, used_bytes);
+        q->encoded_len += used_bytes;
+        buffer_size -= used_bytes;
         flush_data_to_file(q);
         q->encoded_len = 0;
     }
+    memmove(q->data + q->encoded_len, buffer+used_bytes, buffer_size);
     q->encoded_chunk += buffer_size;
-    memmove(q->data + q->encoded_len, buffer, buffer_size);
     q->encoded_len += buffer_size;
     return buffer_size;
 }

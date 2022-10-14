@@ -13,17 +13,11 @@
 #include <stdio.h>
 #include <unistd.h>     // close
 #include <arpa/inet.h>  // struct sockaddr_in
-#include <math.h>       // ceil
-#include <sys/time.h>
 
 #include "error.h"
 #include "arguments.h"
-#include "dns_header.h"
-#include "dns_sender_events.h"
 #include "dns_query.h"
-#include "base64.h"
-
-#define DNS_PORT 12345
+#include "macros.h"
 
 int set_sockaddr(struct sockaddr_in *sockaddr, const char *upstream_ip) {
     sockaddr->sin_family = AF_INET;

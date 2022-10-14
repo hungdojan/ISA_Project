@@ -2,17 +2,24 @@
 #include "dns_header.h"
 #include "error.h"
 #include "data_queue.h"
+#include "macros.h"
 
-#include <errno.h>
-#include <math.h>
-#include <string.h>
+#include <errno.h>      // errno
+#include <string.h>     // memmove, memset, strlen, strerror
 #include <unistd.h>     // getpid
 #include <arpa/inet.h>  // ntohs
-                        //
+
 #define QNAME_SIZE 254
 #define LABEL_SIZE 63
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
+/**
+ * @brief Fill buffer with DNS header data.
+ *
+ * @param buffer      Data buffer.
+ * @param buffer_size Data buffer size.
+ * @return uint8_t *  Pointer to where to start filling DNS query data.
+ */
 static uint8_t *fill_header(uint8_t *buffer, size_t buffer_size) {
     if (buffer == NULL ||
         buffer_size < sizeof(struct dns_header))
@@ -33,11 +40,15 @@ static uint8_t *fill_header(uint8_t *buffer, size_t buffer_size) {
 }
 
 /**
- * Converts buffer content into valid query name format.
+ * @brief Converts qname buffer content into valid query name format.
+ *
+ * @param buffer Output data buffer.
+ * @return int   Total length of qname.
  */
-int convert_qname_to_format(uint8_t *buffer) {
+static int convert_qname_to_format(uint8_t *buffer) {
     // split string into two strings with '.' as a separator
     char *token = strtok((char *)buffer+1, ".");
+
     // splitted string length and index of byte to store this info in
     int index = 0;
     while (token) {
@@ -51,7 +62,16 @@ int convert_qname_to_format(uint8_t *buffer) {
     return index;
 }
 
-int assemble_query(uint8_t *qname_buffer, size_t qname_size,
+/**
+ * @brief Assemble DNS query part of payload.
+ *
+ * @param qname_buffer Buffer that contains qname (ends with terminating character).
+ * @param qname_size   Qname buffer size.
+ * @param buffer_out   Destination buffer.
+ * @param out_size     Destination buffer size.
+ * @return int         Size of whole UDP packet.
+ */
+static int assemble_query(uint8_t *qname_buffer, size_t qname_size,
         uint8_t *buffer_out, size_t out_size) {
     if (qname_buffer == NULL || buffer_out == NULL)
         return 0;
@@ -65,14 +85,25 @@ int assemble_query(uint8_t *qname_buffer, size_t qname_size,
     uint16_t *qtype = (uint16_t *)(query + qname_size + 1);
     uint16_t *qclass = (uint16_t *)(qtype + 1);
     // TODO: define constants
-    *qtype = ntohs(1);
+    *qtype = ntohs(1);  // FIXME: set TXT 
     *qclass = ntohs(1);
 
     // return size of packet
     return sizeof(struct dns_header) + qname_size + 2 * sizeof(uint16_t) + 1;
 }
 
-int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
+/**
+ * @brief Create DNS query domain name.
+ * Data are encoded with base64 encoding and split into (max) 63 bytes chunk of
+ * data to append into final domain name.
+ *
+ * @param buffer      Destination buffer.
+ * @param buffer_size Destination buffer size.
+ * @param args        Program's arguments instance.
+ * @param q           Data queue instance.
+ * @return int        Output buffer length.
+ */
+static int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
         struct args_t *args, struct data_queue_t *q) {
     if (buffer == NULL || args == NULL || q == NULL)
         return 0;
@@ -89,7 +120,8 @@ int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
     // FIXME: add encoded data
     // TODO: append file info
     // cycle to fill labels
-    while ((len = get_encoded_data(q, label, MIN(LABEL_SIZE,available_size - total))) == LABEL_SIZE) {
+    while ((len = get_encoded_data_from_file(q, label,
+                    MIN(LABEL_SIZE,available_size - total))) == LABEL_SIZE) {
         // move data from label into destination buffer
         memmove(buffer_ptr + total, label, len);
         total += len;
@@ -99,17 +131,16 @@ int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
     // append last label
     memmove(buffer_ptr + total, label, len);
     total += len;
-    //
+
     // add separator and append domain
     buffer_ptr[total] = '.';
-    memmove(buffer + total+2, args->base_host, strlen(args->base_host));
+    memmove(buffer + total + 2, args->base_host, strlen(args->base_host));
     total+=strlen(args->base_host);
 
     // convert to format
     return convert_qname_to_format(buffer) ;
 }
 
-// TODO: get address
 int send_data_ipv4(int socket_fd, FILE *f, struct args_t *args) { 
     if (f == NULL || args == NULL)
         return ERR_OTHER;
