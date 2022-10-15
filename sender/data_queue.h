@@ -7,9 +7,10 @@
 struct data_queue_t;
 
 /**
- * Initializes data queue.
+ * @brief Initializes data queue.
+ * 'f' variable cannot be NULL.
  * 
- * @param f File to read data from.
+ * @param f File to read data from/write data to.
  * @returns Initialized data queue structure; NULL when failed.
  */
 struct data_queue_t *init_queue(FILE *f);
@@ -25,6 +26,7 @@ int update_data(struct data_queue_t *q);
 
 /**
  * @brief Store encoded data from file to given buffer.
+ * 'q' and 'buffer' variables cannot be NULL.
  * 
  * @param q          Data queue instance.
  * @param buffer     Buffer to store data.
@@ -33,12 +35,28 @@ int update_data(struct data_queue_t *q);
  */
 int get_encoded_data_from_file(struct data_queue_t *q, uint8_t *buffer, size_t nof_bytes);
 
+/**
+ * @brief Flush decoded data into file.
+ * 'q' and 'buffer' variables cannot be NULL.
+ * 
+ * @param q     Data queue instance.
+ * @return int  Number of bytes that were flushed into file.
+ */
 int flush_data_to_file(struct data_queue_t *q);
 
-int append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size);
+/**
+ * @brief Load and store query data into encoded buffer,
+ * 'q' and 'buffer' variables cannot be NULL.
+ * 
+ * @param q           Data queue instance.
+ * @param buffer      Buffer with data stored in query.
+ * @param buffer_size Size of buffer.
+ */
+void append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size);
 
 /**
  * @brief Return number of bytes read from file.
+ * 'q' variable cannot be NULL.
  * 
  * @param q Data queue instance.
  * @return unsigned int Number of bytes read from file.
@@ -47,6 +65,7 @@ size_t get_file_size(const struct data_queue_t *q);
 
 /**
  * @brief Get data chunk value.
+ * 'q' variable cannot be NULL.
  *
  * @param q Data queue instance.
  * @return size_t Current encoded chunk value.

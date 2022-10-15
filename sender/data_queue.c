@@ -17,8 +17,7 @@ struct data_queue_t {
 };
 
 struct data_queue_t *init_queue(FILE *f) {
-    if (f == NULL)
-        return NULL;
+    assert(f);
 
     struct data_queue_t *q = calloc(1, sizeof(struct data_queue_t));
     if (q == NULL)
@@ -32,8 +31,8 @@ struct data_queue_t *init_queue(FILE *f) {
 }
 
 int update_data(struct data_queue_t *q) {
-    if (q == NULL)
-        return -1;
+    assert(q);
+
     // load data from file
     static uint8_t file_data[DATA_SIZE+1];
     int len = fread(file_data, 1, DATA_SIZE, q->f);
@@ -47,8 +46,7 @@ int update_data(struct data_queue_t *q) {
 }
 
 int get_encoded_data_from_file(struct data_queue_t *q, uint8_t *buffer, size_t nof_bytes) {
-    if (q == NULL || buffer == NULL)
-        return -1;
+    assert(q && buffer);
 
     int used_bytes = 0;
     size_t available_bytes = q->encoded_len - q->index_to_read-1;
@@ -59,13 +57,13 @@ int get_encoded_data_from_file(struct data_queue_t *q, uint8_t *buffer, size_t n
         nof_bytes -= used_bytes;
         available_bytes = update_data(q);
     }
+    // stop when EOF is reached
     if (available_bytes == 1 && q->data[0] == '\0')
         return used_bytes;
+
     memmove(buffer+used_bytes, q->data+q->index_to_read, MIN(available_bytes, nof_bytes));
     q->index_to_read += MIN(available_bytes, nof_bytes);
     used_bytes += MIN(available_bytes, nof_bytes);
-    // fwrite(buffer, 1, used_bytes, stdout);
-    // printf("");
 
     return used_bytes;
 }
@@ -81,7 +79,7 @@ int flush_data_to_file(struct data_queue_t *q) {
     return len;
 }
 
-int append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size) {
+void append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size) {
     assert(q && buffer);
     if (DATA_SIZE - q->encoded_len < buffer_size) {
         flush_data_to_file(q);
@@ -90,7 +88,6 @@ int append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buff
     q->encoded_chunk += buffer_size;
     memmove(q->data + q->encoded_len, buffer, buffer_size);
     q->encoded_len += buffer_size;
-    return buffer_size;
 }
 
 size_t get_file_size(const struct data_queue_t *q) {
