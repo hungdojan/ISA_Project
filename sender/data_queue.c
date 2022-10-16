@@ -1,30 +1,24 @@
 #include "data_queue.h"
 #include "error.h"
 #include "base64.h"
-#include "macros.h"
+#include "dns_sender_events.h"
+#include "arguments.h"
 
 #include <assert.h>
 #include <string.h>     // memset
 #include <stdlib.h>
 
-struct data_queue_t {
-    uint8_t data[ENCODED_SIZE+1]; /** Buffer to store encoded data. */
-    size_t index_to_read;         /** Index of byte to be processed. */
-    size_t encoded_len;           /** Number of bytes in encoded data array. */
-    FILE *f;                      /** File descriptor of opened file. */
-    size_t file_size;             /** Current number of bytes read. */
-    size_t encoded_chunk;         /** Current number of encoded bytes. */
-};
-
-struct data_queue_t *init_queue(FILE *f) {
-    assert(f);
+struct data_queue_t *init_queue(FILE *f, struct args_t *args) {
+    assert(f && args);
 
     struct data_queue_t *q = calloc(1, sizeof(struct data_queue_t));
     if (q == NULL)
         return NULL;
 
     q->f = f;
-    q->index_to_read = q->file_size = q->encoded_chunk = q->encoded_len = 0;
+    q->index_to_read = q->file_size = q->encoded_chunk =
+                       q->encoded_len = q->raw_encoded_len = 0;
+    q->args = args;
     // clear buffer
     update_data(q);
     return q;
@@ -34,13 +28,13 @@ int update_data(struct data_queue_t *q) {
     assert(q);
 
     // load data from file
-    static uint8_t file_data[DATA_SIZE+1];
+    static uint8_t file_data[DATA_SIZE+1] = { 0, };
     int len = fread(file_data, 1, DATA_SIZE, q->f);
     q->data[len] = '\0';
     q->file_size += len;
 
     q->encoded_len = Base64encode((char *)q->data, (char *)file_data, len);
-    q->encoded_chunk += q->encoded_len;
+    // q->encoded_chunk += q->encoded_len;
     q->index_to_read = 0;
     return q->encoded_len;
 }
@@ -85,19 +79,9 @@ void append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buf
         flush_data_to_file(q);
         q->encoded_len = 0;
     }
-    q->encoded_chunk += buffer_size;
+    // q->encoded_chunk += buffer_size;
     memmove(q->data + q->encoded_len, buffer, buffer_size);
     q->encoded_len += buffer_size;
-}
-
-size_t get_file_size(const struct data_queue_t *q) {
-    assert(q);  // q parameter must not be NULL
-    return q->file_size;
-}
-
-size_t get_encoded_chunk(const struct data_queue_t *q) {
-    assert(q);  // q parameter must not be NULL
-    return q->encoded_chunk;
 }
 
 void destroy_queue(struct data_queue_t *q) {

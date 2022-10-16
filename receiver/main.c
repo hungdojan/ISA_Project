@@ -10,8 +10,6 @@
 #include <unistd.h>     // close
 #include <string.h>     // memcpy
 
-// #include <sys/socket.h>
-// #include <netinet/in.h>
 #include "arguments.h"
 #include "dns_receiver_events.h"
 #include "dns_header.h"
@@ -21,46 +19,21 @@
 
 #define MAX_QUERY_SIZE (sizeof(struct dns_header) + 255 + 2 * sizeof(uint16_t))
 
-// void print_packet(uint8_t *buffer, size_t buffer_size) {
-//     puts("-------------- Data Dump -----------------");
-//     const size_t width = 16;
-//     const size_t height = ceil((double)buffer_size / 16.0);
-//     size_t top = 0;
-//     for (; top < height; top++) {
-//         printf("0x%-7.4zx", top*width);
-//         // hex code
-//         for (size_t left = 0; left < width; left++) {
-//             if (left)       printf(" ");
-//             if (left == 8)  printf(" ");
-//             if (top*width + left < buffer_size)
-//                 printf("%.2x", buffer[top*width + left]);
-//             else
-//                 printf("  ");
-//         }
-// 
-//         // add padding
-//         printf("%3s", "");
-// 
-//         // printable characters
-//         for (size_t left = 0; left < 16 && top*width +left < buffer_size; left++) {
-//             if (left == 8)  printf(" ");
-//             if (buffer[top*width + left] >= 32 && buffer[top*width + left] < 128)
-//                 putchar(buffer[top*width + left]);
-//             else
-//                 putchar('.');
-//         }
-//         putchar('\n');
-//     }
-//     puts("");
-// }
+void socket_setup_opts(int fd) {
+    static struct {
+        int ipv6_only;
+    } sock_opts = { .ipv6_only=0, };
 
-// void print_data(uint8_t const *buffer, const char *domain_name, FILE *d) {
+    // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
+    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY,
+               &sock_opts.ipv6_only, sizeof(sock_opts.ipv6_only));
+}
+
 void print_data(uint8_t const *buffer, const char *domain_name,
         struct data_queue_t *q) {
     buffer+=sizeof(struct dns_header);
     static uint8_t a[64] = { 0, };
     uint8_t size = 0;
-    // print_packet(a, 64);
     for (; buffer[0] != 0; buffer+=size) {
         size = buffer[0];
         buffer++;
@@ -69,10 +42,7 @@ void print_data(uint8_t const *buffer, const char *domain_name,
         if (!strncmp((char *)a, domain_name, strlen((char *)a))) {
             break;
         }
-        // printf("%s", a);
         append_data_from_domain(q, a, size);
-        // fwrite(a, 1, strlen((char *)a), d);
-        // fflush(d);
     }
 }
 
@@ -81,15 +51,16 @@ int main(int argc, char *argv[]) {
     if (load_arguments(&args, argc, argv))
         return 1;
 
-    // TODO:
-    struct sockaddr_in client = { 0, }, server = { 0, };
-    server.sin_family = AF_INET;
-    server.sin_port = ntohs(DNS_PORT);
-    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    struct sockaddr_in6 client = { 0, }, server = { 0, };
+    server.sin6_family = AF_INET6;
+    server.sin6_port = htons(DNS_PORT);
+    server.sin6_addr = in6addr_any;
 
-    int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    int socket_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (socket_fd < 0)
         return ERR_SOCKET;
+    socket_setup_opts(socket_fd);
+
     if (bind(socket_fd, (struct sockaddr *)&server, sizeof(server)) == -1) {
         fprintf(stderr, "%s\n", strerror(errno));
         return ERR_BIND;
@@ -99,9 +70,10 @@ int main(int argc, char *argv[]) {
     int n;
     socklen_t socket_size = sizeof(client);
     uint8_t buffer[PACKET_SIZE];
-    FILE *d = fopen("data.txt", "wb");
-    struct data_queue_t *q = init_queue(d);
-    // TODO: check
+    FILE *file = fopen("data.txt", "wb");
+    struct data_queue_t *q = init_queue(file);
+    if (q == NULL)
+        return ERR_OTHER;
 
     while ((n = recvfrom(socket_fd, buffer, PACKET_SIZE, 0,
                     (struct sockaddr *) &client, &socket_size)) == MAX_QUERY_SIZE) {
@@ -116,11 +88,11 @@ int main(int argc, char *argv[]) {
     memmove(buffer, msg, strlen(msg));
     sendto(socket_fd, buffer, strlen(msg), 0, (struct sockaddr *)&client, sizeof(client));
 
-    fclose(d);
     if (n == -1)
         printf("%s\n", strerror(errno));
 
     destroy_queue(q);
+    fclose(file);
     close(socket_fd);
     return 0;
 }

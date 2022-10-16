@@ -20,6 +20,9 @@
 #include "macros.h"
 
 #define DNS_SERVER_INDEX 0
+#define SOCKADDR_LEN(socket) (socket.sa_family == AF_INET ? \
+                              sizeof(struct sockaddr_in) :  \
+                              sizeof(struct sockaddr_in6))
 
 /**
  * @brief Setup socket adress given string IP value.
@@ -28,15 +31,23 @@
  * @param upstream_ip String containing upstream DNS IP address.
  * @return int     Error code.
  */
-int set_ip_version(struct sockaddr_in *sockaddr, const char *upstream_ip) {
+int set_ip_version(struct sockaddr *sockaddr, const char *upstream_ip) {
     // https://stackoverflow.com/a/792016
     // check IPv4 format
-    if (inet_pton(AF_INET, upstream_ip, &(sockaddr->sin_addr.s_addr)))
-        sockaddr->sin_family = AF_INET;
+    if ( inet_pton(AF_INET, upstream_ip,
+                &(( (struct sockaddr_in *) sockaddr)->sin_addr)) ) {
+        sockaddr->sa_family = AF_INET;
+        struct sockaddr_in *s = (struct sockaddr_in *)sockaddr;
+        s->sin_port = ntohs(DNS_PORT);
+
     // check IPv6 format
-    else if (inet_pton(AF_INET6, upstream_ip, &(sockaddr->sin_addr.s_addr)))
-        sockaddr->sin_family = AF_INET6;
-    else       // wrong format
+    } else if ( inet_pton(AF_INET6, upstream_ip,
+                &(( (struct sockaddr_in6 *) sockaddr)->sin6_addr)) ) {
+        sockaddr->sa_family = AF_INET6;
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)sockaddr;
+        s->sin6_port = ntohs(DNS_PORT);
+
+    } else      // wrong format
         return ERR_IP_FORMAT;
     return NO_ERR;
 }
@@ -48,9 +59,7 @@ int set_ip_version(struct sockaddr_in *sockaddr, const char *upstream_ip) {
  * @param upstream_ip String containing upstream DNS IP address.
  * @return int        Error code.
  */
-int set_sockaddr(struct sockaddr_in *sockaddr, const char *upstream_ip) {
-    sockaddr->sin_port = ntohs(53);
-
+int set_sockaddr(struct sockaddr *sockaddr, const char *upstream_ip) {
     if (upstream_ip == NULL) {
         // get system's DNS server locations
         FILE *resolv_f = fopen("/etc/resolv.conf", "r");
@@ -67,7 +76,6 @@ int set_sockaddr(struct sockaddr_in *sockaddr, const char *upstream_ip) {
                 // address
                 token = strtok(NULL, "\n");
                 strncpy(dns_servers[counter], token, strlen(token));
-                printf("%s\n", dns_servers[counter]);
                 counter++;
             }
         }
@@ -79,7 +87,7 @@ int set_sockaddr(struct sockaddr_in *sockaddr, const char *upstream_ip) {
     return set_ip_version(sockaddr, upstream_ip);
 }
 
-int send_data(int socket_fd, struct args_t *args) {
+int send_data(int socket_fd, struct args_t *args, struct sockaddr *dst) {
     if (args == NULL)
         return ERR_OTHER;
 
@@ -89,7 +97,11 @@ int send_data(int socket_fd, struct args_t *args) {
         ERR_MSG(ERR_NO_FILE, "File %s not found\n", args->src_filepath);
 
     // TODO: option to send using IPv6
-    send_data_ipv4(socket_fd, f, args);
+    if (dst->sa_family == AF_INET) {
+        send_data_ipv4(socket_fd, (struct sockaddr_in *)dst, f, args);
+    } else {
+        send_data_ipv6(socket_fd, (struct sockaddr_in6 *)dst, f, args);
+    }
 
     if (f != stdin)
         fclose(f);
@@ -104,19 +116,21 @@ int main(int argc, char *argv[]) {
     if ((err_val = load_args(&args, argc, argv)) != 0)
         return err_val;
 
-    // create UDP socket
-    int socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (socket_fd < 0)
-        ERR_MSG(ERR_SOCKET, "Unable to open socket.\n");
-
-    struct sockaddr_in server = { 0, };
+    struct sockaddr server = { 0, };
     if ((err_val = set_sockaddr(&server, args.upstream_dns_ip)) < 0)
         ERR_MSG(err_val, "Invalid IP address\n");
 
-    if (connect(socket_fd, (const struct sockaddr *)&server, sizeof(server)) != 0)
-        ERR_MSG(ERR_CONNECT, "UDP socket connection failed\n");
+    // create UDP socket
+    int socket_fd = socket(server.sa_family, SOCK_DGRAM, IPPROTO_UDP);
+    if (socket_fd < 0)
+        ERR_MSG(ERR_SOCKET, "Unable to open socket.\n");
 
-    err_val = send_data(socket_fd, &args);
+    if (connect(socket_fd, &server, SOCKADDR_LEN(server)) != 0) {
+        printf("%s\n", strerror(errno));
+        ERR_MSG(ERR_CONNECT, "UDP socket connection failed\n");
+    }
+
+    err_val = send_data(socket_fd, &args, &server);
 
     close(socket_fd);
     return 0;

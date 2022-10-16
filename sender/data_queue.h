@@ -3,17 +3,29 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "arguments.h"
+#include "macros.h"
 
-struct data_queue_t;
+struct data_queue_t {
+    uint8_t data[ENCODED_SIZE+1]; /** Buffer to store encoded data. */
+    size_t index_to_read;         /** Index of byte to be processed. */
+    size_t encoded_len;           /** Number of bytes in encoded data array. */
+    FILE *f;                      /** File descriptor of opened file. */
+    size_t file_size;             /** Current number of bytes read. */
+    size_t encoded_chunk;         /** Current number of encoded bytes. */
+    size_t raw_encoded_len;       /** Length of encoded data in payload. */
+    struct args_t *args;          /** Program's arguments values. */
+};
 
 /**
  * @brief Initializes data queue.
  * 'f' variable cannot be NULL.
  * 
- * @param f File to read data from/write data to.
- * @returns Initialized data queue structure; NULL when failed.
+ * @param f    File to read data from/write data to.
+ * @param args Program's arguments.
+ * @returns    Initialized data queue structure; NULL when failed.
  */
-struct data_queue_t *init_queue(FILE *f);
+struct data_queue_t *init_queue(FILE *f, struct args_t *args);
 
 /**
  * Update structure content.
@@ -53,24 +65,6 @@ int flush_data_to_file(struct data_queue_t *q);
  * @param buffer_size Size of buffer.
  */
 void append_data_from_domain(struct data_queue_t *q, uint8_t *buffer, size_t buffer_size);
-
-/**
- * @brief Return number of bytes read from file.
- * 'q' variable cannot be NULL.
- * 
- * @param q Data queue instance.
- * @return unsigned int Number of bytes read from file.
- */
-size_t get_file_size(const struct data_queue_t *q);
-
-/**
- * @brief Get data chunk value.
- * 'q' variable cannot be NULL.
- *
- * @param q Data queue instance.
- * @return size_t Current encoded chunk value.
- */
-size_t get_encoded_chunk(const struct data_queue_t *q);
 
 /**
  * @brief Clean up function for data queue structure.
