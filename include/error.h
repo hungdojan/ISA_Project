@@ -16,7 +16,7 @@ enum err_code {
     ERR_NO_FILE,        /* file not exists */
 
     ERR_BIND,           /* unable to bind server to socket */
-    ERR_OTHER=99
+    ERR_OTHER=-1
 };
 
 #endif // _ERROR_H_

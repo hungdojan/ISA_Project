@@ -23,19 +23,38 @@ struct dns_answer {
     uint8_t    *resource_data;
 };
 
+struct dns_param_query {
+    uint8_t rec_desire: 1;
+    uint8_t truncation: 1;
+    uint8_t auth_ansr : 1;
+    uint8_t opcode    : 4;
+    uint8_t qresponse : 1;
+
+    uint8_t response  : 4;
+    uint8_t zeros     : 3;
+    uint8_t rec_avail : 1;
+};
+
+struct dns_param_response {
+    uint8_t rec_desire    : 1;
+    uint8_t truncated     : 1;
+    uint8_t authoritative : 1;
+    uint8_t opcode        : 4;
+    uint8_t response      : 1;
+
+    uint8_t reply_code    : 4;
+    uint8_t non_auth_data : 1;
+    uint8_t ans_auth      : 1;
+    uint8_t zeros         : 1;
+    uint8_t rec_avail     : 1;
+};
+
 struct dns_header {
     uint16_t id;
-    struct {
-        uint8_t qresponse : 1;
-        uint8_t opcode    : 4;
-        uint8_t auth_ansr : 1;
-        uint8_t truncation: 1;
-        uint8_t rec_desire: 1;
-
-        uint8_t rec_avail : 1;
-        uint8_t zeros     : 3;
-        uint8_t response  : 4;
-    } parameters;
+    union {
+        struct dns_param_query query;
+        struct dns_param_response response;
+    } param;
     uint16_t q_count;       /* question count */
     uint16_t ar_count;      /* answer record count */
     uint16_t ns_count;      /* name server record count */

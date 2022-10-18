@@ -22,11 +22,11 @@
 
 #define SEND_IPV6_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q) \
     do { \
-        memset(buffer, 0, CHUNK_SIZE_IPV4); \
-        packet_size = assemble_query((uint8_t *)qname_buffer, len, buffer, CHUNK_SIZE_IPV4); \
+        memset(buffer, 0, CHUNK_SIZE_IPV6); \
+        packet_size = assemble_query((uint8_t *)qname_buffer, len, buffer, CHUNK_SIZE_IPV6); \
         \
         send(socket_fd, buffer, packet_size, 0); \
-        packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV4, 0); \
+        packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV6, 0); \
     } while (0)
 
 /**
@@ -43,13 +43,13 @@ static uint8_t *fill_header(uint8_t *buffer, size_t buffer_size) {
 
     struct dns_header *header = (struct dns_header *)buffer;
     header->id = ntohs(getpid());
-    header->parameters.qresponse = 1;
-    header->parameters.opcode = 0;
-    header->parameters.auth_ansr = 0;
-    header->parameters.rec_desire = 0;
-    header->parameters.rec_avail = 0;
-    header->parameters.zeros = 0;
-    header->parameters.response = 0;
+    header->param.query.qresponse = 0;
+    header->param.query.opcode = 0;
+    header->param.query.auth_ansr = 0;
+    header->param.query.rec_desire = 1;
+    header->param.query.rec_avail = 0;
+    header->param.query.zeros = 0;
+    header->param.query.response = 0;
     header->q_count = ntohs(1);
     header->ar_count = header->addit_count = header->ns_count = 0;
     return buffer + sizeof(struct dns_header);
@@ -100,7 +100,6 @@ static int assemble_query(uint8_t *qname_buffer, size_t qname_size,
     // set last four bits of data
     uint16_t *qtype = (uint16_t *)(query + qname_size + 1);
     uint16_t *qclass = (uint16_t *)(qtype + 1);
-    // *qtype = ntohs(DNS_TYPE);
     *qtype = ntohs(DNS_TYPE);
     *qclass = ntohs(1);
 
@@ -215,7 +214,6 @@ int send_data_ipv4(int socket_fd, struct sockaddr_in *dst_addr, FILE *f, struct 
     SEND_IPV4_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
     dns_sender__on_transfer_init(&dst_addr->sin_addr);
 
-
     // cycle throught whole file and encode data into query and
     // send in to DNS server on the other side of the tunnel
     while ((len = create_query_domain_name((uint8_t *)qname_buffer, QNAME_SIZE, args, q)) == QNAME_SIZE) {
@@ -269,7 +267,7 @@ int send_data_ipv6(int socket_fd, struct sockaddr_in6 *dst_addr, FILE *f, struct
     struct data_queue_t *q = init_queue(f, args);
 
     // packet buffer
-    uint8_t buffer[CHUNK_SIZE_IPV4] = { 0, };
+    uint8_t buffer[CHUNK_SIZE_IPV6] = { 0, };
     // buffer for DNS qname value
     char qname_buffer[QNAME_SIZE] = { 0, };
     len = create_init_query_domain((uint8_t *)qname_buffer, QNAME_SIZE, args, q);
@@ -277,7 +275,7 @@ int send_data_ipv6(int socket_fd, struct sockaddr_in6 *dst_addr, FILE *f, struct
         // TODO file name too big
         return -1;
     }
-    SEND_IPV4_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
+    SEND_IPV6_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
     // dns_sender__on_transfer_init(&dst_addr->sin_addr);
     dns_sender__on_transfer_init6(&dst_addr->sin6_addr);
 
