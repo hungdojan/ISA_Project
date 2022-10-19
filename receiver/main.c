@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
         return ERR_BIND;
     }
 
-    run_communication(socket_fd, (struct sockaddr *)&server, &args);
+    run_communication(socket_fd, &args);
 
     close(socket_fd);
     return 0;

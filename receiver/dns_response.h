@@ -26,10 +26,9 @@ int normal_dns_response(int socket_fd, uint8_t *packet, size_t packet_size,
  * @brief Barebone function that handles whole communication between client and server.
  *
  * @param socket_fd Socket's file descriptor.
- * @param dst       Info of server's address.
  * @param args      Program's arguments.
  * @return int      NO_ERR value when no error occurs; non-zero value otherwise.
  */
-int run_communication(int socket_fd, struct sockaddr *dst, struct args_t *args);
+int run_communication(int socket_fd, struct args_t *args);
 
 #endif // _DNS_RESPONSE_H_
