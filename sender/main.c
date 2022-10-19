@@ -130,7 +130,6 @@ int main(int argc, char *argv[]) {
         ERR_MSG(ERR_CONNECT, "UDP socket connection failed\n");
     }
 
-    // printf("%d\n", server.sa_family);
     err_val = send_data(socket_fd, &args, &server);
 
     close(socket_fd);
