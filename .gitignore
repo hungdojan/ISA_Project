@@ -6,3 +6,4 @@ dns_receiver
 *.tar.gz
 examples/
 .ccls
+.vscode
