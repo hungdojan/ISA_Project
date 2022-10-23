@@ -17,7 +17,7 @@ struct data_queue_t *init_queue(FILE *f, struct args_t *args) {
 
     q->f = f;
     q->index_to_read = q->file_size = q->encoded_chunk =
-                       q->encoded_len = q->raw_encoded_len = 0;
+                       q->encoded_len = q->raw_encoded_len = q->chunkID = 0;
     q->args = args;
     // clear buffer
     update_data(q);

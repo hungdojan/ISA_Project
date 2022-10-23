@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <unistd.h>     // close
 #include <arpa/inet.h>  // struct sockaddr_in
+#include <sys/time.h>   // struct timeval
+#include <sys/socket.h>
 
 #include "error.h"
 #include "arguments.h"
@@ -109,6 +111,22 @@ int send_data(int socket_fd, struct args_t *args, struct sockaddr *dst) {
     return 0;
 }
 
+static int socket_setup_opts(int fd) {
+    static struct {
+        struct timeval timeout;
+    } sock_opts = { 
+        .timeout = {
+            .tv_sec = 5,
+            .tv_usec = 0
+        }
+    };
+
+    // settings timeouts
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &(sock_opts.timeout), sizeof(sock_opts.timeout));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &(sock_opts.timeout), sizeof(sock_opts.timeout));
+    return NO_ERR;
+}
+
 int main(int argc, char *argv[]) {
     // load arguments
     int err_val = NO_ERR;
@@ -124,6 +142,8 @@ int main(int argc, char *argv[]) {
     int socket_fd = socket(server.sa_family, SOCK_DGRAM, IPPROTO_UDP);
     if (socket_fd < 0)
         ERR_MSG(ERR_SOCKET, "Unable to open socket.\n");
+
+    socket_setup_opts(socket_fd);
 
     if (connect(socket_fd, &server, SOCKADDR_LEN(server)) != 0) {
         printf("%s\n", strerror(errno));

@@ -10,24 +10,64 @@
 #include <string.h>     // memmove, memset, strlen, strerror
 #include <unistd.h>     // getpid
 #include <arpa/inet.h>  // ntohs
+#include <sys/socket.h>
 
 #define SEND_IPV4_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q) \
     do { \
+        int send_counter = 0;               \
         memset(buffer, 0, CHUNK_SIZE_IPV4); \
         packet_size = assemble_query((uint8_t *)qname_buffer, len, buffer, CHUNK_SIZE_IPV4); \
         \
-        send(socket_fd, buffer, packet_size, 0); \
-        packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV4, 0); \
+        do { \
+            if (send_counter > 0)                                       \
+                puts("Trying to resend packet...");                     \
+            send(socket_fd, buffer, packet_size, 0);                    \
+            if (errno != 0)     continue;                               \
+            packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV4, 0);  \
+            if (errno != 0)     continue;                               \
+            errno = check_received_packet(buffer, q->chunkID);          \
+        } while (send_counter++ < 5 && errno != 0);                     \
+        if (errno != 0)             \
+            goto error_packet_ipv4; \
     } while (0)
 
 #define SEND_IPV6_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q) \
     do { \
+        int send_counter = 0;               \
         memset(buffer, 0, CHUNK_SIZE_IPV6); \
         packet_size = assemble_query((uint8_t *)qname_buffer, len, buffer, CHUNK_SIZE_IPV6); \
         \
-        send(socket_fd, buffer, packet_size, 0); \
-        packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV6, 0); \
+        do { \
+            if (send_counter > 0)                                       \
+                puts("Trying to resend packet...");                     \
+            send(socket_fd, buffer, packet_size, 0);                    \
+            if (errno != 0)     continue;                               \
+            packet_size = recv(socket_fd, buffer, CHUNK_SIZE_IPV6, 0);  \
+        } while (send_counter++ < 5 && errno != 0);                     \
+        if (errno != 0)             \
+            goto error_packet_ipv6; \
     } while (0)
+
+static int check_received_packet(void *packet, size_t sent_chunkID) {
+    uint8_t *dns_qname = (uint8_t *)packet + sizeof(struct dns_header);
+    char num_buffer[20] = { 0, };
+    memcpy(num_buffer, dns_qname+1, dns_qname[0]);
+    num_buffer[dns_qname[0]] = '\0';
+    return sent_chunkID - strtol(num_buffer, NULL, 10) - 1;
+}
+
+/**
+ * @brief Inserts chunkID value into DNS query name.
+ * 
+ * @param packet 
+ * @param q 
+ * @return size_t 
+ */
+static size_t append_chunk_id(void *packet, struct data_queue_t *q) {
+    sprintf((char *)packet, "%ld.", q->chunkID++);
+    size_t chunk_size = strlen((char *)packet);
+    return chunk_size;
+}
 
 /**
  * @brief Fill buffer with DNS header data.
@@ -123,21 +163,24 @@ static int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
     if (buffer == NULL || args == NULL || q == NULL)
         return 0;
 
-    size_t len, total = 0;
-    // TODO: add label for file name - ?? only once ??
-    size_t available_size = buffer_size - strlen(args->base_host) - 2;
     // reset buffer
     memset(buffer, 0, buffer_size);
     uint8_t label[LABEL_SIZE] = { 0, };
     // secondary buffer for pointer arithmetics
-    uint8_t *buffer_ptr = buffer+1;
-    // static int chunkID = 1;
+    uint8_t *buffer_ptr = buffer + 1;
+
+    // append chunk ID
+    size_t chunk_size = append_chunk_id(buffer_ptr, q);
+    buffer_ptr += chunk_size;
+
+    size_t len, total = 0;
+    size_t available_size = buffer_size - strlen(args->base_host) - 2 - buffer[0] - chunk_size;
 
     // cycle to fill labels
     while ((len = get_encoded_data_from_file(q, label,
                     MIN(LABEL_SIZE,available_size - total))) == LABEL_SIZE) {
         // move data from label into destination buffer
-        memmove(buffer_ptr + total, label, len);
+        memcpy(buffer_ptr + total, label, len);
         total += len;
         q->raw_encoded_len += len;
         q->encoded_chunk += len;
@@ -145,38 +188,43 @@ static int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
         buffer_ptr[total++] = '.';
     }
     // append last label
-    memmove(buffer_ptr + total, label, len);
+    memcpy(buffer_ptr + total, label, len);
     total += len;
     q->raw_encoded_len += len;
     q->encoded_chunk += len;
 
     // add separator and append domain
     buffer_ptr[total] = '.';
-    memmove(buffer + total + 2, args->base_host, strlen(args->base_host));
+    memmove(buffer + total + 2 + chunk_size, args->base_host, strlen(args->base_host));
     total+=strlen(args->base_host);
     buffer_ptr[total+1] = '\0';
     dns_sender__on_chunk_encoded((char *)args->dst_filepath, q->encoded_chunk, (char *)buffer_ptr);
 
     // convert to format
-    return convert_qname_to_format(buffer) ;
+    return convert_qname_to_format(buffer);
 }
 
 static int create_init_query_domain(uint8_t *buffer, size_t buffer_size,
         struct args_t *args, struct data_queue_t *q) {
     if (buffer == NULL || args == NULL || q == NULL)
         return 0;
+
+    // clear buffer
+    memset(buffer, 0, buffer_size);
+    uint8_t *ptr = buffer + 1;  // starting address to insert data
+
+    // append chunk ID
+    size_t chunk_size = append_chunk_id(ptr, q);
+    ptr += chunk_size;
+
     char encoded_file_name[256] = { 0, };
     size_t len = Base64encode(encoded_file_name, args->dst_filepath, strlen(args->dst_filepath));
 
     // check if encoded file name fits into one dns query
-    if (len > QNAME_SIZE - 2 - strlen(args->base_host) - 4)
+    if (len > QNAME_SIZE - 2 - strlen(args->base_host) - 4 - chunk_size)
         return -1;
 
-    // clear buffer
-    memset(buffer, 0, buffer_size);
-
     // divide encoded file name into labels
-    uint8_t *ptr = buffer + 1;
     do {
         uint8_t size = MIN(len, LABEL_SIZE);
         memmove(ptr, encoded_file_name, size);
@@ -192,7 +240,8 @@ static int create_init_query_domain(uint8_t *buffer, size_t buffer_size,
     // append domain name
     memmove(++ptr, args->base_host, strlen(args->base_host));
 
-    return convert_qname_to_format(buffer);
+    int r = convert_qname_to_format(buffer);
+    return r;
 }
 
 int send_data_ipv4(int socket_fd, struct sockaddr_in *dst_addr, FILE *f, struct args_t *args) { 
@@ -220,21 +269,25 @@ int send_data_ipv4(int socket_fd, struct sockaddr_in *dst_addr, FILE *f, struct 
         // TODO: chunkID
         SEND_IPV4_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
         dns_sender__on_chunk_sent(&dst_addr->sin_addr, (char *)args->dst_filepath,
-                                  q->encoded_chunk, q->raw_encoded_len);
+                                  q->chunkID, q->raw_encoded_len);
         q->raw_encoded_len = 0;
     }
 
     // encode and send last chunk of data
     SEND_IPV4_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
     dns_sender__on_chunk_sent(&dst_addr->sin_addr, (char *)args->dst_filepath,
-                              q->encoded_chunk, q->raw_encoded_len);
+                              q->chunkID, q->raw_encoded_len);
     q->raw_encoded_len = 0;
 
     // finish communication
     dns_sender__on_transfer_completed((char *)args->dst_filepath, q->file_size);
 
     destroy_queue(q);
-    return 0;
+    return NO_ERR;
+
+error_packet_ipv4:
+    destroy_queue(q);
+    ERR_MSG(ERR_OTHER, "packet failed\n");
 }
 
 int send_data_ipv6(int socket_fd, struct sockaddr_in6 *dst_addr, FILE *f, struct args_t *args) { 
@@ -263,21 +316,25 @@ int send_data_ipv6(int socket_fd, struct sockaddr_in6 *dst_addr, FILE *f, struct
         // TODO: chunkID
         SEND_IPV6_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
         dns_sender__on_chunk_sent6(&dst_addr->sin6_addr, (char *)args->dst_filepath,
-                                  q->file_size, q->raw_encoded_len);
+                                  q->chunkID, q->raw_encoded_len);
         q->raw_encoded_len = 0;
     }
 
     // encode and send last chunk of data
     SEND_IPV6_PACKET(buffer, qname_buffer, len, socket_fd, dst_addr, args, q);
     dns_sender__on_chunk_sent6(&dst_addr->sin6_addr, (char *)args->dst_filepath,
-                              q->file_size, q->raw_encoded_len);
+                              q->chunkID, q->raw_encoded_len);
     q->raw_encoded_len = 0;
 
     // finish communication
     dns_sender__on_transfer_completed((char *)args->dst_filepath, q->file_size);
 
     destroy_queue(q);
-    return 0;
+    return NO_ERR;
+
+error_packet_ipv6:
+    destroy_queue(q);
+    ERR_MSG(ERR_OTHER, "packet failed\n");
 }
 
 

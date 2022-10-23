@@ -14,6 +14,7 @@ struct data_queue_t {
     size_t file_size;             /** Current number of bytes read. */
     size_t encoded_chunk;         /** Current number of encoded bytes. */
     char file_name[QNAME_SIZE];   /** Output file name. */
+    size_t chunkID;
 };
 
 /**

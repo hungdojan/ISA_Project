@@ -16,7 +16,7 @@ struct data_queue_t *init_queue(FILE *f) {
         return NULL;
 
     q->f = f;
-    q->index_to_read = q->file_size = q->encoded_chunk = q->encoded_len = 0;
+    q->index_to_read = q->file_size = q->encoded_chunk = q->encoded_len = q->chunkID = 0;
     // clear buffer
     return q;
 }

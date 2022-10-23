@@ -15,6 +15,7 @@ struct data_queue_t {
     size_t encoded_chunk;         /** Current number of encoded bytes. */
     size_t raw_encoded_len;       /** Length of encoded data in payload. */
     struct args_t *args;          /** Program's arguments values. */
+    size_t chunkID;
 };
 
 /**

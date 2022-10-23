@@ -12,12 +12,12 @@ int load_arguments(struct args_t *args, const int argc, char * const *argv) {
 
     if (argc < 3) {
         fprintf(stderr, "dns_receiver: Missing arguments.\n"
-                        "Use -h for more information\n");
+                        "expected: ./dns_received {BASE_HOST} {DST_DIRPATH}\n");
         return -1;
     }
 
     args->base_host    = argv[1];
-    args->dst_filepath = argv[2];
+    args->dst_dirpath = argv[2];
     return 0;
 }
 
