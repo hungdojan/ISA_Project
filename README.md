@@ -1,6 +1,6 @@
 # Tunelování datových přenosů přes DNS dotazy
-Autor: Hung Do (xdohun00@fit.vutbr.cz)
-Datum: 23.11.2022
+Autor: Hung Do (xdohun00@fit.vutbr.cz)  
+Datum: 23.10.2022
 
 ## Popis
 Projekt se skládá ze 2 částí: `dns_sender` a `dns_receiver`.  
