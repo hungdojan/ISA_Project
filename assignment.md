@@ -1,8 +1,8 @@
 # Zadani
-Předmět: ISA - Síťové aplikace a správa sítí
-Ak. rok: 2022/2023
-Název: Tunelování datových přenosů přes DNS dotazy
-Vedoucí: Ing. Daniel Dolejška
+Předmět: ISA - Síťové aplikace a správa sítí  
+Ak. rok: 2022/2023  
+Název: Tunelování datových přenosů přes DNS dotazy  
+Vedoucí: Ing. Daniel Dolejška  
 
 ### Popis:
 Tento projekt se zaměřuje na implementaci nástroje pro tunelování dat prostřednictvím
