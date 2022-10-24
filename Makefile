@@ -1,6 +1,6 @@
 # C project: DNS Tunnel
 TARGET=dns_receiver dns_sender
-SUBMIT_FILES=Makefile README.md dokumentace.pdf include/* \
+SUBMIT_FILES=Makefile README.md manual.pdf include/* \
 			 sender/Makefile sender/*.{c,h} receiver/*.{c,h} receiver/Makefile \
 			 shared/*.c
 

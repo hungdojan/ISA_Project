@@ -11,6 +11,8 @@
 #include <unistd.h>     // close
 #include <netinet/in.h> // struct sockaddr_in
 #include <sys/socket.h>
+#include <string.h>     // strerror
+#include <errno.h>      // errno
 
 #include "arguments.h"
 #include "error.h"
@@ -58,6 +60,7 @@ int main(int argc, char *argv[]) {
 
         if (bind(socket_fd, (struct sockaddr *)&server, sizeof(server)) == -1) {
             err_value = ERR_BIND;
+            printf("%s\n", strerror(errno));
             goto error_handle;
         }
 

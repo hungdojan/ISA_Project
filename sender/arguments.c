@@ -14,7 +14,7 @@
 // defining this macro in order to enable getopt in -std=c11
 #ifndef _POSIX_C_SOURCE
     #define _POSIX_C_SOURCE 2
-#endif    
+#endif
 
 #include "arguments.h"
 #include "error.h"
@@ -41,9 +41,11 @@ int load_args(struct args_t *args, int argc, char * const *argv) {
     }
     // missing mandatory arguments
     if (argc - optind < 2) {
-        ERR_MSG(ERR_ARGS, "Missing arguments\n");
+        fprintf(stderr, "dns_sender: Missing arguments\n");
+        usage();
+        return ERR_ARGS;
     }
-    
+
     // load base_host and dst_filepath
     args->base_host = argv[optind++];
     args->dst_filepath = argv[optind++];

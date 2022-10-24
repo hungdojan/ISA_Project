@@ -13,6 +13,17 @@
 #include "arguments.h"
 #include "error.h"
 
+static void usage() {
+    printf("DNS receiver\n"
+           "dns_receiver {BASE_HOST} {DST_DIRPATH}\n"
+           "\n"
+           "Positional parameters:\n"
+           "   BASE_HOST                           Set base host domain.\n"
+           "   DST_DIRPATH                         Path to a directory where data will be stored.\n"
+    );
+
+}
+
 int load_arguments(struct args_t *args, const int argc, char * const *argv) {
     if (args == NULL)
         return ERR_OTHER;
@@ -20,8 +31,8 @@ int load_arguments(struct args_t *args, const int argc, char * const *argv) {
     // expected format: ./dns_receiver {BASE_HOST} {DST_DIRPATH}
     // everything after last mandatory parameter DST_DIRPATH will be ignored
     if (argc < 3) {
-        fprintf(stderr, "dns_receiver: Missing arguments.\n"
-                        "expected: ./dns_received {BASE_HOST} {DST_DIRPATH}\n");
+        fprintf(stderr, "dns_receiver: Missing arguments.\n");
+        usage();
         return ERR_ARGS;
     }
 
