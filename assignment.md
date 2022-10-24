@@ -1,33 +1,34 @@
 # Zadani
 Předmět: ISA - Síťové aplikace a správa sítí
 Ak. rok: 2022/2023
-Název:   Tunelování datových přenosů přes DNS dotazy - Projekt ISA 
+Název: Tunelování datových přenosů přes DNS dotazy
 Vedoucí: Ing. Daniel Dolejška
 
 ### Popis:
-Tento projekt se zaměřuje na implementaci nástroje pro tunelování dat prostřednictvím 
+Tento projekt se zaměřuje na implementaci nástroje pro tunelování dat prostřednictvím
 DNS dotazů [1] \(použitelným například při DNS data exfiltration útoku [2, 3, 4]).
 Vašim úkolem tedy bude implementace klientské i serverové části této aplikace dle požadavků uvedených níže.
 
 #### Klient
-Klientská aplikace bude odesílat data souboru/ze STDIN. 
+Klientská aplikace bude odesílat data souboru/ze STDIN.
 V případě, že program načítá data ze STDIN je činnost aplikace ukončena přijetím EOF.
 Program bude možné spustit a ovládat pomocí následujícího předpisu:
 
 ```
-dns_sender {-b BASE_HOST} [-u UPSTREAM_DNS_IP] {DST_FILEPATH} [SRC_FILEPATH]
+dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH]
 
-$ dns_sender -b example.com -u 127.0.0.1 data.txt ./data.txt
-$ dns_sender -b example.com -u 127.0.0.1 data.txt < echo "abc"
+$ dns_sender -u 127.0.0.1 example.com data.txt ./data.txt
+$ echo "abc" | dns_sender -u 127.0.0.1 example.com data.txt
 
 Přepínače:
 
-    -b slouží k nastavení bázové domény všech přenosů
-        tzn. dotazy budou odesílány na adresy *.{BASE_HOST}, tedy např. edcba.32.1.example.com
     -u slouží k vynucení vzdáleného DNS serveru
+        pokud není specifikováno, program využije výchozí DNS server nastavený v systému
 
 Poziční parametry:
 
+    {BASE_HOST} slouží k nastavení bázové domény všech přenosů
+        tzn. dotazy budou odesílány na adresy *.{BASE_HOST}, tedy např. edcba.32.1.example.com
     {DST_FILEPATH} cesta pod kterou se data uloží na serveru
     [SRC_FILEPATH] cesta k souboru který bude odesílán
         pokud není specifikováno pak program čte data ze STDIN
@@ -35,8 +36,8 @@ Poziční parametry:
 
 #### Server
 
-Serverová aplikace bude naslouchat na implicitním portu pro DNS komunikaci. 
-Příchozí datové přenosy bude ukládat na disk ve formě souborů. 
+Serverová aplikace bude naslouchat na implicitním portu pro DNS komunikaci.
+Příchozí datové přenosy bude ukládat na disk ve formě souborů.
 Komunikační protokol mezi klientem a serverem je implementační detail.
 
 ```
@@ -48,22 +49,22 @@ Poziční parametry:
 
     {BASE_HOST} slouží k nastavení bázové domény k příjmu dat
     {DST_FILEPATH} cesta pod kterou se příchozí data uloží
+```
 
-Programová dokumentace
+### Programová dokumentace
 
 Dokumentace vytvořeného řešení musí obsahovat a splňovat následující požadavky:
 
-    popis mechanismu pro tunelování datových přenosů prostřednictvím DNS dotazů
-    popis návrhu a implementace klientské a serverové aplikace
-        komunikační protokol mezi klientem a serverem
-        způsob kódování dat a informací
-        způsob ukládání souborů na serveru
-        možná rozšíření, omezení
-        atd.
-    popis testování a měření vytvořeného softwaru
-    minimální rozsah není stanoven, chybějící sekce či nedostatečné/nekompletní informace budou penalizovány
-    odevzdání ve formátu PDF s názvem dokumentace.pdf
-```
+- popis mechanismu pro tunelování datových přenosů prostřednictvím DNS dotazů
+- popis návrhu a implementace klientské a serverové aplikace
+    - komunikační protokol mezi klientem a serverem
+    - způsob kódování dat a informací
+    - způsob ukládání souborů na serveru
+    - možná rozšíření, omezení
+    - atd.
+- popis testování a měření vytvořeného softwaru
+- minimální rozsah není stanoven, chybějící sekce či nedostatečné/nekompletní informace budou penalizovány
+- odevzdání ve formátu PDF s názvem `manual.pdf`
 
 ### Formální požadavky zadání
 
@@ -79,6 +80,9 @@ Dokumentace vytvořeného řešení musí obsahovat a splňovat následující p
             - zápis dat,
             - aj.
     - další nestandardní knihovny nejsou dovoleny
+    - dále také nejsou dovoleny hlavičkové soubory:
+        - `resolv.h`
+
 - vytvoření Makefile
     - podpora `make sender`
     - podpora `make receiver`
