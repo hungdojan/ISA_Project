@@ -1,29 +1,40 @@
-#include <string.h>     // memset
+/**
+ * @brief This file defines functions declared in `dns_response.h` file.
+ *
+ * Server uses UDP protocol for communication with client. Tunneling protocol is
+ * defined in documentation. For data encoding and decoding is used base64 encoding.
+ * Source code for base64 implementation are taken from https://www.opensource.apple.com
+ * under the license Apple Public Source License Version 2.0.
+ *
+ * This source code serves as submission for a project of class ISA at FIT, BUT 2022/23.
+ *
+ * @author Hung Do (xdohun00@fit.vutbr.cz)
+ * @file dns_response.c
+ * @date 2022-10-23
+ */
+#include <string.h>     // memcpy
 #include <unistd.h>     // close, mkdir
-#include <errno.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
+#include <errno.h>      // errno
+#include <arpa/inet.h>  // inet_pton
+#include <sys/socket.h> // sendto, recvfrom, ...
+#include <sys/time.h>   // struct timeval
 #include <sys/stat.h>   // stat
 
 #include "dns_header.h"
-#include "data_queue.h"
 #include "dns_response.h"
 #include "dns_receiver_events.h"
 #include "error.h"
 #include "base64.h"
 #include "macros.h"
 
-#define MAX_QUERY_SIZE (sizeof(struct dns_header) + 255 + 2 * sizeof(uint16_t))
-#define PRINT_ERROR() printf("%s %d\n", strerror(errno), errno)
-
 #define RECEIVE_IPV4(src_addr, packet_buffer, packet_size, base_host, q, qname_buffer, file_name) \
             do { \
                 if (validate_tunnel_communication(packet_buffer, packet_size, base_host)) {         \
                     int chunk_size = process_tunneling_data(packet_buffer, base_host, q);           \
-                    if (chunk_size < 0)     continue; \
+                    if (chunk_size == ERR_OTHER)       return ERR_OTHER; \
+                    if (chunk_size == ERR_OLD_PACKET)  continue; \
                     dns_receiver__on_chunk_received(src_addr, file_name, q->chunkID, chunk_size);   \
-                    memmove(qname_buffer, packet_buffer + sizeof(struct dns_header),                \
+                    memcpy(qname_buffer, packet_buffer + sizeof(struct dns_header),                \
                             strlen((char *)packet_buffer + sizeof(struct dns_header))+1);           \
                     convert_format_to_qname(qname_buffer);                                          \
                     dns_receiver__on_query_parsed(file_name, qname_buffer+1);                       \
@@ -37,9 +48,10 @@
             do { \
                 if (validate_tunnel_communication(packet_buffer, packet_size, base_host)) {         \
                     int chunk_size = process_tunneling_data(packet_buffer, base_host, q);           \
-                    if (chunk_size < 0)     continue; \
+                    if (chunk_size == ERR_OTHER)       return ERR_OTHER; \
+                    if (chunk_size == ERR_OLD_PACKET)  continue; \
                     dns_receiver__on_chunk_received6(src_addr, file_name, q->chunkID, chunk_size);  \
-                    memmove(qname_buffer, packet_buffer + sizeof(struct dns_header),                \
+                    memcpy(qname_buffer, packet_buffer + sizeof(struct dns_header),                \
                             strlen((char *)packet_buffer + sizeof(struct dns_header))+1);           \
                     convert_format_to_qname(qname_buffer);                                          \
                     dns_receiver__on_query_parsed(file_name, qname_buffer+1);                       \
@@ -49,13 +61,19 @@
                         (struct sockaddr *)&client, socket_size); \
             } while (0)
 
-#define PREFIX_SIZE 6
 const uint16_t _IPV4_MAPPED_PREFIX[PREFIX_SIZE] = { 0, 0, 0, 0, 0, 0xffff };
 
-static size_t extract_chunk_ID(const uint8_t *packet, size_t *chunk_id_size) {
+/**
+ * @brief Get `chunkID` stored in the beginning of the DNS query.
+ *
+ * @param dns_query      DNS query payload buffer.
+ * @param chunk_id_size  Retuns number of digits of chunkID.
+ * @return size_t        ChunkID value.
+ */
+static size_t extract_chunk_ID(const uint8_t *dns_query, size_t *chunk_id_size) {
     char num_buffer[20] = { 0, };
-    memcpy(num_buffer, packet+1, packet[0]);
-    num_buffer[packet[0]] = '\0';
+    memcpy(num_buffer, dns_query+1, dns_query[0]);
+    num_buffer[dns_query[0]] = '\0';
     *chunk_id_size = strlen(num_buffer);
     return strtol(num_buffer, NULL, 10);
 }
@@ -63,13 +81,13 @@ static size_t extract_chunk_ID(const uint8_t *packet, size_t *chunk_id_size) {
 /**
  * @brief Checks if sender uses IPv4 communication stored in IPv6 address.
  * Mapped IPv4 uses prefix ::ffff:[IPv4] in IPv6 address.
- * 
+ *
  * https://stackoverflow.com/questions/14272656/how-to-resolve-ipv4-address-from-ipv4-mapped-ipv6-address
  *
  * @param addr IPv6 address.
  * @return int Zero when address contains IPv4 mapped prefix.
  */
-int is_ipv4_mapped(void *addr) {
+static int is_ipv4_mapped(void *addr) {
     return memcmp(addr, _IPV4_MAPPED_PREFIX, PREFIX_SIZE * sizeof(uint16_t));
 }
 
@@ -79,7 +97,7 @@ int is_ipv4_mapped(void *addr) {
  * @param addr IPv6 address.
  * @return (void *) Beginning of IPv4 section.
  */
-void *get_ip_address(struct sockaddr *addr) {
+static void *get_ip_address(struct sockaddr *addr) {
     void *address = &(((struct sockaddr_in6*)addr)->sin6_addr);
     if (!is_ipv4_mapped(address)) {
         return (uint8_t *)address + sizeof(uint16_t) * PREFIX_SIZE;
@@ -88,7 +106,32 @@ void *get_ip_address(struct sockaddr *addr) {
 }
 
 /**
+ * @brief Wrapper for recvfrom function.
+ * Handles receiver timeout.
+ *
+ * @param fd            Socket file descriptor.
+ * @param buffer        Buffer to store incoming data.
+ * @param max_size      Buffer size.
+ * @param client_addr   Client's address handler.
+ * @param sock_size     Address handler size.
+ * @return int          If successful function returns size of packet,
+ *                      negative value when error or connection lost happens.
+ */
+static int receive_packet_check(int fd, void *buffer, size_t max_size,
+                    struct sockaddr *client_addr, socklen_t *sock_size) {
+    if (buffer == NULL || client_addr == NULL || sock_size == NULL)
+        return ERR_OTHER;
+
+    int packet_size;
+    // wait 10 seconds before declaring connection lost
+    // option set with SOC_RCVTIMEO
+    packet_size = recvfrom(fd, buffer, max_size, 0, client_addr, sock_size);
+    return errno == 0 ? packet_size : ERR_OTHER;
+}
+
+/**
  * @brief Converts qname buffer content into valid query name format.
+ * google.com -> 6google3com0
  *
  * @param buffer Output data buffer.
  * @return int   Total length of qname.
@@ -112,6 +155,7 @@ static int convert_qname_to_format(char *buffer) {
 
 /**
  * @brief Converts query formatted name into human readable format.
+ * 6google3com0 -> google.com
  *
  * @param buffer Buffer with data.
  */
@@ -126,14 +170,6 @@ static void convert_format_to_qname(char *buffer) {
     buffer[index] = '\0';
 }
 
-/**
- * @brief Validates whether packet passes initialization requirements.
- * 
- * @param packet Buffer containing packet's data.
- * @param packet_size Buffer's size.
- * @param base_host Base host domain name.
- * @return int   Non-zero value when packet passes validation check.
- */
 int validate_tunnel_communication(const void *packet, size_t packet_size, const char *base_host) {
     // offset to DNS query name
     char *qname = (char *)packet + sizeof(struct dns_header);
@@ -152,14 +188,6 @@ int validate_tunnel_communication(const void *packet, size_t packet_size, const 
     return *qtype == ntohs(DNS_TYPE);
 }
 
-/**
- * @brief Extract and decode destination file name from initialization DNS query.
- *
- * @param qname_buffer Query domain name.
- * @param file_name    Buffer to store file name.
- * @param args         Program's arguments.
- * @return int         File name's length.
- */
 int get_file_name(uint8_t *qname_buffer, uint8_t *file_name, const struct args_t *args) {
     if (qname_buffer == NULL || file_name == NULL || args == NULL)
         return ERR_OTHER;
@@ -189,6 +217,7 @@ int get_file_name(uint8_t *qname_buffer, uint8_t *file_name, const struct args_t
         file_name[++last_index] = '\0';
     }
     // https://stackoverflow.com/a/7430262
+    // create directory if not exists
     struct stat tmp = { 0, };
     if (stat((char *)file_name, &tmp) == -1) {
         mkdir((char *)file_name, 0744);
@@ -198,13 +227,7 @@ int get_file_name(uint8_t *qname_buffer, uint8_t *file_name, const struct args_t
     return size;
 }
 
-/**
- * @brief Transfor query packet to response packet.
- *
- * @param packet Buffer containing packet data.
- * @return int Zero when no error occurs.
- */
-static int create_response(uint8_t *packet) {
+int create_response(uint8_t *packet) {
     if (packet == NULL)
         return ERR_OTHER;
     struct dns_header *header = (struct dns_header *)packet;
@@ -251,29 +274,18 @@ int normal_dns_response(int socket_fd, uint8_t *packet, size_t packet_size,
     return NO_ERR;
 }
 
-/**
- * @brief Processes initialization packet.
- *
- * @param socket_fd     Socket's file descriptor.
- * @param args          Program's arguments.
- * @param q             Pointer to data queue instance (might be initialized).
- * @param packet_buffer Buffer with packet's content.
- * @param buffer_size   Packet buffer size.
- * @param client        Info of client's address.
- * @return int          Zero when server received initialization packet;
- *                      packet's size when valid DNS query was received.
- */
-static int process_init_packet(const int socket_fd, const struct args_t *args,
+int process_init_packet(const int socket_fd, const struct args_t *args,
         struct data_queue_t **q, uint8_t *packet_buffer,
         size_t buffer_size, struct sockaddr *client, socklen_t *len) {
     // size of received packet
     int packet_size;
     uint8_t file_name[QNAME_SIZE] = { 0, };
 
-    // receiving packet
     packet_size = recvfrom(socket_fd, packet_buffer, buffer_size, 0, (struct sockaddr *)client, len);
 
+    // validate incoming packet, extract file name and initialize `data_queue_t` instance
     if (validate_tunnel_communication(packet_buffer, packet_size, args->base_host)) {
+        // extract init chunkID
         size_t chunk_id_offset;
         size_t chunk_id_value = extract_chunk_ID(packet_buffer + sizeof(struct dns_header), &chunk_id_offset);
         chunk_id_offset++;
@@ -283,7 +295,7 @@ static int process_init_packet(const int socket_fd, const struct args_t *args,
         FILE *file = fopen((char *)file_name, "wb");
         if (file == NULL)
             return ERR_OTHER;
-        *q = init_queue(file);
+        *q = init_queue(file, NULL);
         if (q == NULL) {
             fclose(file);
             return ERR_OTHER;
@@ -291,7 +303,7 @@ static int process_init_packet(const int socket_fd, const struct args_t *args,
         (*q)->chunkID = chunk_id_value;
         memmove((*q)->file_name, file_name, strlen((char *)file_name) + 1);
 
-        // start communication between client and server
+        // log start communication between client and server
         if (!is_ipv4_mapped( &((struct sockaddr_in6 *)client)->sin6_addr))
             dns_receiver__on_transfer_init(get_ip_address(client));
         else
@@ -299,19 +311,16 @@ static int process_init_packet(const int socket_fd, const struct args_t *args,
 
         create_response(packet_buffer);
         sendto(socket_fd, packet_buffer, packet_size, 0, client, *len);
-        return 0;
+
+        // setup sockets receive timeout
+        struct timeval timeout = { .tv_sec = 10, .tv_usec = 0 };
+        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        return NO_ERR;
     }
     return packet_size;
 }
 
-/**
- * @brief Extract data from dns queries.
- *
- * @param buffer Packet buffer.
- * @param domain_name Base host domain name.
- * @param q      Data queue instance.
- */
-static int process_tunneling_data(uint8_t const *buffer, const char *domain_name,
+int process_tunneling_data(uint8_t const *buffer, const char *domain_name,
         struct data_queue_t *q) {
     // offset to get DNS query's qname
     buffer+=sizeof(struct dns_header);
@@ -322,11 +331,11 @@ static int process_tunneling_data(uint8_t const *buffer, const char *domain_name
     int chunk_size = 0;
 
     // checking chunkID of received packet
-    // if received packet contains old packet, ignore it 
+    // if received packet contains old packet, ignore it
     size_t chunk_id_offset;
     size_t chunk_id_value = extract_chunk_ID(buffer, &chunk_id_offset);
     if (chunk_id_value <= q->chunkID)
-        return ERR_OTHER;
+        return ERR_OLD_PACKET;
     buffer += chunk_id_offset + 1;
     q->chunkID = chunk_id_value;
 
@@ -360,8 +369,9 @@ int run_communication(int socket_fd, struct args_t *args) {
     // validate init packet
     if ((packet_size = process_init_packet(socket_fd, args, &q, packet_buffer,
                     PACKET_SIZE, (struct sockaddr *)&client, &socket_size)) == 0) {
+
         // receive and process data
-        while ((packet_size = recvfrom(socket_fd, packet_buffer, PACKET_SIZE, 0,
+        while ((packet_size = receive_packet_check(socket_fd, packet_buffer, PACKET_SIZE,
                         (struct sockaddr *)&client, &socket_size)) == MAX_QUERY_SIZE) {
             if (!is_ipv4_mapped( &((struct sockaddr_in6 *)&client)->sin6_addr )) {
                 RECEIVE_IPV4(get_ip_address((struct sockaddr *)&client), packet_buffer,
@@ -371,6 +381,9 @@ int run_communication(int socket_fd, struct args_t *args) {
                         packet_size, args->base_host, q, qname_buffer, q->file_name);
             }
         }
+        if (packet_size == ERR_OTHER)
+            goto error_receive_packet;
+
         // process last chunk of data
         if (!is_ipv4_mapped( &((struct sockaddr_in6 *)&client)->sin6_addr )) {
             RECEIVE_IPV4(get_ip_address((struct sockaddr *)&client), packet_buffer,
@@ -384,9 +397,6 @@ int run_communication(int socket_fd, struct args_t *args) {
         // finish log
         dns_receiver__on_transfer_completed(q->file_name, q->file_size);
 
-        if (packet_size == -1)
-            printf("%s\n", strerror(errno));
-
         fclose(q->f);
         destroy_queue(q);
     } else {
@@ -394,7 +404,13 @@ int run_communication(int socket_fd, struct args_t *args) {
         normal_dns_response(socket_fd, packet_buffer, packet_size,
                 PACKET_SIZE, (struct sockaddr *)&client, socket_size);
     }
-    return 0;
+    return NO_ERR;
+
+error_receive_packet:
+    fclose(q->f);
+    destroy_queue(q);
+
+    ERR_MSG(ERR_OTHER, "Connection with client lost\n");
 }
 
 /* dns_response.c */

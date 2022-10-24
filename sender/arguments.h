@@ -1,7 +1,7 @@
 /**
  * @brief Declaration of arguments structure and functions.
  * This file contains functions that operates with program's arguments.
- * 
+ *
  * This source code serves as submission
  * for a project of class ISA at FIT, BUT 2022/23.
  *
@@ -31,7 +31,7 @@ struct args_t {
  * @param args  Address of structure's instance to initialize.
  * @param argc  Size of argument vector.
  * @param argv  Argument vector.
- * @returns 0 when no problem occurs; non-zero value otherwise.
+ * @return int 0 when no problem occurs; non-zero value otherwise.
  */
 int load_args(struct args_t *args, int argc, char * const *argv);
 

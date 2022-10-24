@@ -1,18 +1,17 @@
 /**
- * This is the main file from which the program starts.
+ * @brief This is a main file where program starts.
  *
  * This source code serves as submission
  * for a project of class ISA at FIT, BUT 2022/23.
  *
- * @file    main.c
- * @author  Hung Do
- * @date    11/2022
+ * @author Hung Do (xdohun00@fit.vutbr.cz)
+ * @file main.c
+ * @date 2022-10-23
  */
-#include <errno.h>
-#include <string.h>
-#include <stdio.h>
+#include <string.h>     // strlen
+#include <arpa/inet.h>  // inet_pton
 #include <unistd.h>     // close
-#include <arpa/inet.h>  // struct sockaddr_in
+#include <netinet/in.h> // struct sockaddr_in
 #include <sys/time.h>   // struct timeval
 #include <sys/socket.h>
 
@@ -29,9 +28,9 @@
 /**
  * @brief Setup socket adress given string IP value.
  *
- * @param sockaddr Structure for handling internet address.
+ * @param sockaddr    Structure for handling internet address.
  * @param upstream_ip String containing upstream DNS IP address.
- * @return int     Error code.
+ * @return int        Error code.
  */
 int set_ip_version(struct sockaddr *sockaddr, const char *upstream_ip) {
     // https://stackoverflow.com/a/792016
@@ -89,7 +88,16 @@ int set_sockaddr(struct sockaddr *sockaddr, const char *upstream_ip) {
     return set_ip_version(sockaddr, upstream_ip);
 }
 
-int send_data(int socket_fd, struct args_t *args, struct sockaddr *dst) {
+/**
+ * @brief Start communication with DNS server.
+ *
+ * @param socket_fd Socket file descriptor
+ * @param args      Program argument's instance.
+ * @param dst       Server's address handler.
+ * @return int      0 value when no error occurs; non-zero value otherwise.
+ */
+static int send_data(int socket_fd, struct args_t *args, struct sockaddr *dst) {
+    int err_val;
     if (args == NULL)
         return ERR_OTHER;
 
@@ -100,23 +108,28 @@ int send_data(int socket_fd, struct args_t *args, struct sockaddr *dst) {
 
     // TODO: option to send using IPv6
     if (dst->sa_family == AF_INET) {
-        send_data_ipv4(socket_fd, (struct sockaddr_in *)dst, f, args);
+        err_val = send_data_ipv4(socket_fd, (struct sockaddr_in *)dst, f, args);
     } else {
-        send_data_ipv6(socket_fd, (struct sockaddr_in6 *)dst, f, args);
+        err_val = send_data_ipv6(socket_fd, (struct sockaddr_in6 *)dst, f, args);
     }
 
     if (f != stdin)
         fclose(f);
 
-    return 0;
+    return err_val;
 }
 
-static int socket_setup_opts(int fd) {
+/**
+ * @brief Setup socket options.
+ *
+ * @param fd   Socket file descriptor.
+ */
+static void socket_setup_opts(int fd) {
     static struct {
         struct timeval timeout;
-    } sock_opts = { 
+    } sock_opts = {
         .timeout = {
-            .tv_sec = 5,
+            .tv_sec = 3,
             .tv_usec = 0
         }
     };
@@ -124,7 +137,6 @@ static int socket_setup_opts(int fd) {
     // settings timeouts
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &(sock_opts.timeout), sizeof(sock_opts.timeout));
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &(sock_opts.timeout), sizeof(sock_opts.timeout));
-    return NO_ERR;
 }
 
 int main(int argc, char *argv[]) {
@@ -146,14 +158,14 @@ int main(int argc, char *argv[]) {
     socket_setup_opts(socket_fd);
 
     if (connect(socket_fd, &server, SOCKADDR_LEN(server)) != 0) {
-        printf("%s\n", strerror(errno));
+        close(socket_fd);
         ERR_MSG(ERR_CONNECT, "UDP socket connection failed\n");
     }
 
     err_val = send_data(socket_fd, &args, &server);
 
     close(socket_fd);
-    return 0;
+    return err_val;
 }
 
 /* main.c */

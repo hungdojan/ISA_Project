@@ -123,11 +123,6 @@ int Base64decode_len(const char *bufcoded)
     return nbytesdecoded + 1;
 }
 
-// https://stackoverflow.com/a/32140193
-int Base64decode_orig_len(size_t i) {
-    return ((4 * i / 3) + 3) & ~3;
-}
-
 int Base64decode(char *bufplain, const char *bufcoded)
 {
     int nbytesdecoded;

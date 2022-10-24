@@ -1,40 +1,41 @@
 # C project: DNS Tunnel
-SENDER=dns_sender
-RECEIVER=dns_receiver
-TARGET=$(SENDER) $(RECEIVER)
+TARGET=dns_receiver dns_sender
+SUBMIT_FILES=Makefile README.md dokumentace.pdf include/* \
+			 sender/Makefile sender/*.{c,h} receiver/*.{c,h} receiver/Makefile \
+			 shared/*.c
+
 
 #####################################
 
-.PHONY: all
+.PHONY: all run
 
-all: $(TARGET)
+all: sender receiver
 
 #####################################
 
 .PHONY: sender receiver
 
-sender: $(SENDER)
-	$<
+sender: sender/Makefile
+	@$(MAKE) -Csender --no-print-directory
 
-$(SENDER): sender/Makefile
-	make -Csender
-
-receiver: $(RECEIVER)
-	$<
-
-$(RECEIVER): receiver/Makefile
-	make -Creceiver run
+receiver: receiver/Makefile
+	@$(MAKE) -Creceiver --no-print-directory
 
 #####################################
 
 .PHONY: test_server clean pack
 
-test_server:
-	: # TODO: ssh {remote server} [command]
+test_server: pack
+	# scp xdohun00.tar.gz fedora_local:/root/isa
+	# ssh fedora_local /root/isa/unpack.sh
+	scp xdohun00.tar.gz eva:/homes/eva/xd/xdohun00/isa
+	ssh eva /homes/eva/xd/xdohun00/isa/unpack.sh
 
 clean:
-	rm -f ./**/*.o $(TARGET) *.tar.gz
+	@$(MAKE) -Csender clean --no-print-directory
+	@$(MAKE) -Creceiver clean --no-print-directory
+	rm -f ./**/*.o *.tar.gz
 
 pack:
 	rm -f xdohun00.tar.gz
-	tar -czvf xdohun00.tar.gz Makefile README.md sender/{*.h,*.c} receiver/{*.h,*.c} dokumentace.pdf
+	@tar -czvf xdohun00.tar.gz $(SUBMIT_FILES)
