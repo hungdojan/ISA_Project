@@ -21,7 +21,7 @@
 #define DATA_SIZE       3 * BASE_ARRAY_SIZE
 #define ENCODED_SIZE    4 * BASE_ARRAY_SIZE
 
-#define DNS_PORT 12345
+#define DNS_PORT 53
 #define DNS_TYPE 16
 
 // number of double octets defined for IPv4 mapped in IPv6
