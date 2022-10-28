@@ -99,4 +99,4 @@ $ <C-D>
 ## Použití veřejně dostupných zdrojových souborů
 Projekt používá pro kódování dat base64 kódování. Zdrojové soubory byly
 zveřejněni skupinou **The Apache Group**. Zdrojové soubory jsou k dostání zde
-[base64.h](https://opensource.apple.com/source/QuickTimeStreamingServer/QuickTimeStreamingServer-452/CommonUtilitiesLib/base.h) a [base64.c](https://opensource.apple.com/source/QuickTimeStreamingServer/QuickTimeStreamingServer-452/CommonUtilitiesLib/base.c).
+[base64.h](https://opensource.apple.com/source/QuickTimeStreamingServer/QuickTimeStreamingServer-452/CommonUtilitiesLib/base64.h) a [base64.c](https://opensource.apple.com/source/QuickTimeStreamingServer/QuickTimeStreamingServer-452/CommonUtilitiesLib/base64.c).
