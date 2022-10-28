@@ -7,3 +7,8 @@ dns_receiver
 examples/
 .ccls
 .vscode
+docs/*
+!docs/resources/
+!docs/*.tex
+!docs/*.bib
+!docs/*.bst

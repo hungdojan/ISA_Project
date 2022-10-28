@@ -160,7 +160,7 @@ int create_query_domain_name(uint8_t *buffer, size_t buffer_size,
 
     // reset buffer
     memset(buffer, 0, buffer_size);
-    uint8_t label[LABEL_SIZE] = { 0, };
+    static uint8_t label[LABEL_SIZE] = { 0, };
     // secondary buffer for pointer arithmetics
     uint8_t *buffer_ptr = buffer + 1;
 
