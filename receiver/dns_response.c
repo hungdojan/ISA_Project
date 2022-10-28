@@ -221,6 +221,7 @@ int get_file_name(uint8_t *qname_buffer, uint8_t *file_name, const struct args_t
     struct stat tmp = { 0, };
     if (stat((char *)file_name, &tmp) == -1) {
         mkdir((char *)file_name, 0744);
+        errno = 0;  // reset error counter when directory doesn't exists
     }
 
     size = Base64decode((char *)file_name + last_index, encoded_data);
