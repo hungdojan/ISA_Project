@@ -14,6 +14,7 @@
 #include <netinet/in.h> // struct sockaddr_in
 #include <sys/time.h>   // struct timeval
 #include <sys/socket.h>
+#include <errno.h>
 
 #include "error.h"
 #include "arguments.h"
@@ -76,7 +77,7 @@ int set_sockaddr(struct sockaddr *sockaddr, const char *upstream_ip) {
                 token = strtok(buffer, " ");
                 // address
                 token = strtok(NULL, "\n");
-                strncpy(dns_servers[counter], token, strlen(token));
+                memcpy(dns_servers[counter], token, strlen(token));
                 counter++;
             }
         }

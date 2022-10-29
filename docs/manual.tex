@@ -40,7 +40,22 @@
     Tam se data složí do své původní podoby.\cite{DnsTunnel}
 
     \section{Návrh implementace}
-    % TODO:
+    \begin{figure}[h!]
+        \centering
+        \includegraphics[width=400pt]{sender_fsm}
+        \caption{Konečný automat programu \textbf{dns\_sender}}
+    \end{figure}
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=400pt]{receiver_fsm}
+        \caption{Konečný automat programu \textbf{dns\_receiver}}
+    \end{figure}
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=\textwidth]{module_diagram}
+        \caption{Propojení jednotlivých modulů v projektu}
+    \end{figure}
+    \clearpage
 
     \section{Implementace}
     \label{sec:implementace}
@@ -220,7 +235,7 @@ UNCONN 0      0                         127.0.0.53%lo:53         0.0.0.0:*
         program naslouchá ze \verb|STDIN|.
     \end{itemize}
 
-    Příklady rozjetí komunikace naleznete v sekci \ref{sec:testovani}.
+    K překladu projektu slouží přiložený souboru \verb|./Makefile| (více informací naleznete v \verb|README.md|). Příklady rozjetí komunikace naleznete v sekci \ref{sec:testovani}.
 
     \section{Testování}
     \label{sec:testovani}
@@ -234,8 +249,25 @@ UNCONN 0      0                         127.0.0.53%lo:53         0.0.0.0:*
     Druhý systém zprávu přijímal a data skládal do souboru pomocí programu \verb|dns_receiver|.
 
     \noindent
-    \includegraphics[width=\textwidth]{simple_text}
-    % TODO: fotky
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=300pt]{simple_text}
+        \caption{Odesílání dat ze \emph{STDIN}}
+    \end{figure}
+    \noindent
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=250pt]{normal_query}
+        \includegraphics[width=250pt]{wireshark}
+        \caption{Odesílání normálního DNS dotazu}
+    \end{figure}
+    \noindent
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=\textwidth]{send_flac_file.png}
+        \caption{Odesílání a spuštění binárního souboru (FLAC soubor)}
+    \end{figure}
+    \clearpage
 
     % zdroje
     \bibliographystyle{czechiso}

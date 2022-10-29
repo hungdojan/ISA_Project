@@ -4,7 +4,9 @@ doc/
 dns_sender
 dns_receiver
 *.tar.gz
-examples/
+examples/*
+!examples/udp_data.txt
+!examples/simple.txt
 .ccls
 .vscode
 docs/*
